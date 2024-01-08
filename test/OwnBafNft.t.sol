@@ -8,17 +8,23 @@ import { Factory1155 } from "../src/Factory1155.sol";
 contract BafDevUser1155TokenTest is Test {
     BafDevUser1155Token public token;
 
-    address OWNER = address(0x111);
+    address public OWNER = address(0x111);
 
     Factory1155 public factory;
 
     // Setup function to initialize a new token contract before each test
     function setUp() public {
+          vm.deal(OWNER, 10000 ether);
         vm.startPrank(OWNER);
-        factory = new Factory1155();
-        token = new BafDevUser1155Token("Test Token", "TST", "https://example.com/", address(factory));
+        factory = new Factory1155(OWNER, OWNER);
+        factory = new Factory1155(OWNER, OWNER);
+        factory.setMintFee(0.001 ether);
+        factory.setFeeReceiver(OWNER);
+        bytes32 salt = bytes32(uint256(0));
+        token = BafDevUser1155Token(factory.deploy(salt, "Test Token", "TST", "tokenURIPrefix"));
+        
+        token.mint{value: 0.001 ether}("1", 100, 5);
         vm.stopPrank();
-        vm.deal(OWNER, 100 ether);
     }
 
     modifier ownerCall() {
@@ -26,6 +32,65 @@ contract BafDevUser1155TokenTest is Test {
         _;
         vm.stopPrank();
     }
+
+
+    function invariant_tokenName() public {
+        assertEq(token.name(), "Test Token");
+    }
+
+    function invariant_tokenSymbol() public {
+        assertEq(token.symbol(), "TST");
+    }
+
+    function invariant_isInitialized() public{
+        assertEq(token.isInitialized(), true);
+    }
+
+    function invariant_ownerIsNotNull() public {
+        assertNotEq(token.owner(), address(0));
+    }
+
+    function invariant_ownerIsAlwaysAdmin() public {
+        assertEq(token.hasRole(token.DEFAULT_ADMIN_ROLE(), token.owner()), true);
+    }
+
+    function invariant_factory() public {
+        assert(address(token.factory()) == address(factory));
+    }
+
+    function testPause() public ownerCall {
+        token.pause();
+        assertTrue(token.paused());
+    }
+
+    function testUnpause() public ownerCall {
+        token.pause();
+        token.unpause();
+        assertFalse(token.paused());
+    }
+
+    function testFailUnpauseWhenNotPaused() public ownerCall {
+        token.unpause();
+        vm.expectRevert();
+    }
+
+    function testFailPauseWhenPaused() public ownerCall {
+        token.pause();
+        token.pause();
+        vm.expectRevert("Pausable: paused");
+    }
+
+
+    function testNonOwnerFailPause() public {
+        vm.expectRevert();
+        token.pause();
+    }
+
+    function testNonOwnerFailUnpause() public {
+        vm.expectRevert();
+        token.unpause();
+    }
+
 
     // Test to verify the token name
     function testName() public {
@@ -42,7 +107,7 @@ contract BafDevUser1155TokenTest is Test {
     // Test to verify transfer of ownership
     function testTransferOwnership() public ownerCall {
         address newOwner = address(0x123);
-        assertTrue(token.transferOwnership(newOwner));
+        token.transferOwnership(newOwner);
         assertEq(token.owner(), newOwner);
     }
 
@@ -74,17 +139,6 @@ contract BafDevUser1155TokenTest is Test {
         assertEq(royalty, (8 * 1e18) / 1000);
     }
 
-    // function testChangeMaxRoyaltyPercentage() public ownerCall {
-    //     // assertTrue(token.changeMaxRoyaltyPercentage(50));
-    //     assertEq(token.maxRoyaltyFee(), 50);
-    // }
-
-    // function testFailChangeMaxRoyaltyPercentageOverLimit() public ownerCall {
-    //     token.changeMaxRoyaltyPercentage(1001);
-    //     vm.expectRevert("ERC2981: royalty fee will exceed salePrice");
-    // }
-
-
     function testUri() public ownerCall {
         string memory newBaseURI = "https://example.com/";
         assertTrue(token.setBaseURI(newBaseURI));
@@ -95,9 +149,12 @@ contract BafDevUser1155TokenTest is Test {
      function testInvalidMintValue() public ownerCall {
         factory.setMintFee(0.001 ether);
         factory.setFeeReceiver(address(token));
-        vm.expectRevert("BafDevUser1155Token: insufficient funds");
+        vm.expectRevert("BafDevUser1155Token: invalid fee amount");
         token.mint{value: 0.0001 ether}("tokenuri", 5, 10);
+        vm.expectRevert("BafDevUser1155Token: invalid fee amount");
+        token.mint{value: 20 ether}("tokenuri", 5, 10);
     }
+
 
 
 }

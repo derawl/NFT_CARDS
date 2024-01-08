@@ -7,7 +7,7 @@ import "@openzeppelin/contracts/utils/Context.sol";
 import "@openzeppelin/contracts/utils/Counters.sol";
 import "@openzeppelin/contracts/utils/Strings.sol";
 import "@openzeppelin/contracts/access/AccessControl.sol";
-import "./common/ERC2981.sol";
+import "../common/ERC2981.sol";
 
 contract NFTTC_ERC1155_Contract is
     Context,

@@ -4,8 +4,11 @@ pragma solidity 0.8.17;
 
 import "./OwnBafNft1155.sol";
 import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
+import {ReentrancyGuard} from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 
-contract Factory1155 is AccessControl {
+contract Factory1155 is AccessControl, ReentrancyGuard{
+
+    bytes32 public constant WITHDRAWER_ROLE = keccak256("MINTER_ROLE");
 
     uint256 public mintFee;
 
@@ -19,10 +22,15 @@ contract Factory1155 is AccessControl {
     event MintFeeCollected(uint256 indexed amount, address indexed nftContract);
 
 
+    modifier isWithdrawerOrAdmin() {
+        require(hasRole(WITHDRAWER_ROLE, msg.sender) || hasRole(DEFAULT_ADMIN_ROLE, msg.sender), "Factory1155: caller is not a withdrawer or admin");
+        _;
+    }
 
-    constructor(){
-        feeReceiver = msg.sender;
-        _setupRole(DEFAULT_ADMIN_ROLE, msg.sender);
+
+    constructor(address admin_, address feeReceiver_){
+        feeReceiver = feeReceiver_;
+        _setupRole(DEFAULT_ADMIN_ROLE, admin_);
     }
 
     function deploy(
@@ -30,12 +38,12 @@ contract Factory1155 is AccessControl {
         string memory name,
         string memory symbol,
         string memory tokenURIPrefix
-    ) external returns (address addr) {
+    ) external nonReentrant returns (address addr) {
         addr = address(
             new BafDevUser1155Token{salt: _salt}(name, symbol, tokenURIPrefix, address(this)
         ));
         BafDevUser1155Token token = BafDevUser1155Token(address(addr));
-        token.transferOwnership(msg.sender);
+        token.initialize(msg.sender);
         isDeployed[addr] = true;
         emit Deployed(msg.sender, addr);
     }
@@ -52,11 +60,14 @@ contract Factory1155 is AccessControl {
         emit FeeReceiverChanged(feeReceiver, _feeReceiver);
     }
     
-    //good that admin is multisig
-    function sendFee() public payable {
+    function sendFee() public payable nonReentrant  {
         require(isDeployed[msg.sender], "Factory1155: not deployed by this factory");
-        require(msg.value >= mintFee , "Factory1155: mint fee is zero");
+        require(msg.value >= mintFee , "Factory1155: mint is not enough");
         payable(feeReceiver).transfer(msg.value);
         emit MintFeeCollected(msg.value, msg.sender);
+    }
+
+    function withdrawEth() public isWithdrawerOrAdmin nonReentrant {
+        payable(msg.sender).transfer(address(this).balance);
     }
 }

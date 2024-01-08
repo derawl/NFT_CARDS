@@ -6,7 +6,7 @@ import "@openzeppelin/contracts/interfaces/IERC2981.sol";
 import "./interface/ITransferProxy.sol";
 import {Pausable} from "@openzeppelin/contracts/security/Pausable.sol";
 
-contract Trade is AccessControl, Pausable{
+contract TradeV3 is AccessControl, Pausable{
 
     bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
 
@@ -20,8 +20,9 @@ contract Trade is AccessControl, Pausable{
         address indexed previousOwner,
         address indexed newOwner
     );
+    event MaxRoyaltyFee(uint8 maxRoyaltyFee);
+    event MarketingFee(uint8 marketingFee);
     event SellerFee(uint8 sellerFee);
-    event BuyerFee(uint8 buyerFee);
     event PartnerFee(uint8 partnerFee);
     event BuyAsset(
         address nftAddress,
@@ -37,12 +38,27 @@ contract Trade is AccessControl, Pausable{
         uint256 quantity,
         address indexed buyer
     );
-    // buyer platformFee
-    uint8 private buyerFeePermille;
+    event FeeTransfers(
+        uint256 indexed tokenId,
+        uint256 indexed royaltyFee,
+        uint256 indexed sellerFee,
+        uint256 partnerFee,
+        uint256 marketingFee,
+        uint256 assetFee
+    );
+
+
+    uint16 public constant PRECISION = 1000;
+
     //seller platformFee
     uint8 private sellerFeePermille;
     //partner platformFee
     uint8 private partnerFeePermille;
+
+    //royalty fee 
+    uint8 private maxRoyaltyFee;
+
+    uint8 private marketingFeePermille;
 
     ITransferProxy public transferProxy;
     //contract owner and admins
@@ -53,16 +69,16 @@ contract Trade is AccessControl, Pausable{
     mapping(uint256 => bool) private usedNonce;
 
     /** Fee Struct
-        @param platformFee  uint256 (buyerFee + sellerFee) value which is transferred to current contract owner.
+        @param platformFee  sellerFee value which is transferred to current contract owner.
         @param assetFee  uint256  assetvalue which is transferred to current seller of the NFT.
         @param royaltyFee  uint256 value, transferred to Minter of the NFT.
-        @param price  uint256 value, the combination of buyerFee and assetValue.
+        @param price  uint256 value, the assetValue.
         @param tokenCreator address value, it's store the creator of NFT.
      */
     struct Fee {
-        uint256 buyerFee;
         uint256 sellerFee;
         uint256 partnerFee;
+        uint256 marketingFee;
         uint256 assetFee;
         uint256 royaltyFee;
         uint256 price;
@@ -81,8 +97,8 @@ contract Trade is AccessControl, Pausable{
         @param buyer address of user, who's buying the NFT.
         @param erc20Address address of the token, which is used as payment token(WETH/WBNB/WMATIC...)
         @param nftAddress address of NFT contract where the NFT token is created/Minted.
-        @param uintprice the Price Each NFT it's not including the buyerFee.
-        @param amount the price of NFT(assetFee + buyerFee).
+        @param uintprice the Price Each NFT.
+        @param amount the price of NFT(assetFee).
         @param tokenId 
         @param qty number of quantity to be transfer.
      */
@@ -99,37 +115,41 @@ contract Trade is AccessControl, Pausable{
         uint256 qty;
     }
 
+
+    modifier isValidRange(uint8 _value) {
+        require(_value >= 0 && _value <= PRECISION, "Trade: Invalid value");
+        _;
+    }
+
     constructor(
-        uint8 _buyerFee,
+        uint8 _maxRoyaltyFee,
         uint8 _sellerFee,
         uint8 _partnerFee,
+        uint8 _maketingFee,
         address _admin1,
         address _admin2,
         ITransferProxy _transferProxy
     ) {
-        buyerFeePermille = _buyerFee;
         sellerFeePermille = _sellerFee;
         partnerFeePermille = _partnerFee;
+        marketingFeePermille = _maketingFee;
         transferProxy = _transferProxy;
         owner = msg.sender;
         admin1 = _admin1;
         admin2 = _admin2;
+        maxRoyaltyFee = _maxRoyaltyFee;
         _setupRole(ADMIN_ROLE, msg.sender);
         _setupRole(ADMIN_ROLE, admin1);
         _setupRole(ADMIN_ROLE, admin2);
         _setupRole(DEFAULT_ADMIN_ROLE, msg.sender);
     }
 
-    /**
-        returns the buyerservice Fee in multiply of 1000.
-     */
-
-    function buyerServiceFee() external view virtual returns (uint8) {
-        return buyerFeePermille;
+    function maxRoyaltyFeeRate() external view virtual returns (uint8) {
+        return maxRoyaltyFee;
     }
 
     /**
-        returns the sellerservice Fee in multiply of 1000.
+        returns the sellerservice Fee in multiply of PRECISION.
      */
 
     function sellerServiceFee() external view virtual returns (uint8) {
@@ -149,25 +169,56 @@ contract Trade is AccessControl, Pausable{
         _unpause();
     }
 
-    /** 
-        @param _buyerFee  value for buyerservice in multiply of 1000.
-    */
 
-    function setBuyerServiceFee(
-        uint8 _buyerFee
-    ) external onlyRole(ADMIN_ROLE) returns (bool) {
-        buyerFeePermille = _buyerFee;
-        emit BuyerFee(buyerFeePermille);
+    function setTransferProxy(address newTransferProxy) external onlyRole(ADMIN_ROLE) returns (bool) {
+        transferProxy = ITransferProxy(newTransferProxy);
         return true;
     }
 
+    function setMaxRoyaltyFee(uint8 _maxRoyaltyFee) external onlyRole(ADMIN_ROLE) isValidRange(_maxRoyaltyFee) returns (bool) {
+        maxRoyaltyFee = _maxRoyaltyFee;
+        emit MaxRoyaltyFee(maxRoyaltyFee);
+        return true;
+    }
+
+
+    function setAllFees(
+        uint8 _maxRoyaltyFee,
+        uint8 _marketingFee,
+        uint8 _sellerFee,
+        uint8 _partnerFee
+    ) external onlyRole(ADMIN_ROLE) returns (bool) {
+        require(_maxRoyaltyFee >= 0 && _maxRoyaltyFee <= PRECISION, "Trade: Invalid value");
+        require(_marketingFee >= 0 && _marketingFee <= PRECISION, "Trade: Invalid value");
+        require(_sellerFee >= 0 && _sellerFee <= PRECISION, "Trade: Invalid value");
+        require(_partnerFee >= 0 && _partnerFee <= PRECISION, "Trade: Invalid value");
+        maxRoyaltyFee = _maxRoyaltyFee;
+        marketingFeePermille = _marketingFee;
+        sellerFeePermille = _sellerFee;
+        partnerFeePermille = _partnerFee;
+        emit MaxRoyaltyFee(maxRoyaltyFee);
+        emit MarketingFee(marketingFeePermille);
+        emit SellerFee(sellerFeePermille);
+        emit PartnerFee(partnerFeePermille);
+        return true;
+    }
+
+
+    function setMarketingFee(
+        uint8 _marketingFee
+    ) external onlyRole(ADMIN_ROLE) isValidRange(_marketingFee) returns (bool) {
+        marketingFeePermille = _marketingFee;
+        emit MarketingFee(marketingFeePermille);
+        return true;
+    }
+   
     /** 
-        @param _sellerFee  value for buyerservice in multiply of 1000.
+        @param _sellerFee  value for buyerservice in multiply of PRECISION.
     */
 
     function setSellerServiceFee(
         uint8 _sellerFee
-    ) external onlyRole(ADMIN_ROLE) returns (bool) {
+    ) external onlyRole(ADMIN_ROLE) isValidRange(_sellerFee) returns (bool) {
         sellerFeePermille = _sellerFee;
         emit SellerFee(sellerFeePermille);
         return true;
@@ -175,7 +226,7 @@ contract Trade is AccessControl, Pausable{
 
     function setPartnerFee(
         uint8 _partnerFee
-    ) external onlyRole(ADMIN_ROLE) returns (bool) {
+    ) external onlyRole(ADMIN_ROLE) isValidRange(_partnerFee) returns (bool) {
         partnerFeePermille = _partnerFee;
         emit PartnerFee(partnerFeePermille);
         return true;
@@ -245,10 +296,10 @@ contract Trade is AccessControl, Pausable{
             order.nftAddress,
             order.tokenId
         );
-        require(
-            (fee.price >= order.unitPrice * order.qty),
-            "Paid invalid amount"
-        );
+        // require(
+        //     (fee.price >= order.unitPrice * order.qty),
+        //     "Paid invalid amount"
+        // );
         _verifySellerSign(
             order.seller,
             order.tokenId,
@@ -385,20 +436,28 @@ contract Trade is AccessControl, Pausable{
         address tokenCreator;
         uint256 royaltyFee;
         uint256 assetFee;
-        uint256 price = (paymentAmt * 1000) / (1000 + buyerFeePermille);
-        uint256 buyerFee = paymentAmt - price;
-        uint256 sellerFee = (price * sellerFeePermille) / 1000;
-        uint256 partnerFee = (price * partnerFeePermille) / 1000;
+        uint256 price =  paymentAmt;
+        uint256 sellerFee = (price * sellerFeePermille) / PRECISION;
+        uint256 partnerFee = (price * partnerFeePermille) / PRECISION;
         
         (tokenCreator, royaltyFee) = IERC2981(buyingAssetAddress)
             .royaltyInfo(tokenId, price);
+
+        uint256 maxAcceptableRoyaltyFee = (price * maxRoyaltyFee) / PRECISION;
+
+        uint256 marketingFee = (price * marketingFeePermille) / PRECISION;
+
+        royaltyFee = royaltyFee > maxAcceptableRoyaltyFee
+            ? maxAcceptableRoyaltyFee
+            : royaltyFee;
         
-        assetFee = price - sellerFee - royaltyFee - partnerFee;
+        assetFee = price - (sellerFee + royaltyFee + partnerFee + marketingFee);
+       
         return
             Fee(
-                buyerFee,
                 sellerFee,
                 partnerFee,
+                marketingFee,
                 assetFee,
                 royaltyFee,
                 price,
@@ -412,7 +471,7 @@ contract Trade is AccessControl, Pausable{
         @param fee Feevalues(platformFee, assetFee,...).
     */
 
-    function _tradeAsset(
+     function _tradeAsset(
         Order calldata order,
         Fee memory fee,
         address buyer,
@@ -428,12 +487,12 @@ contract Trade is AccessControl, Pausable{
             ""
         );
         
-        if (fee.buyerFee > 0) {
+        if (fee.marketingFee > 0) {
             transferProxy.erc20safeTransferFrom(
                 IERC20(order.erc20Address),
                 buyer,
                 admin1,
-                fee.buyerFee
+                fee.marketingFee
             );
         }
         if (fee.sellerFee > 0) {
@@ -474,5 +533,16 @@ contract Trade is AccessControl, Pausable{
             seller,
             fee.assetFee
         );
+
+        emit FeeTransfers(
+            order.tokenId,
+            fee.royaltyFee,
+            fee.sellerFee,
+            fee.partnerFee,
+            fee.marketingFee,
+            fee.assetFee
+            );
     }
+
+   
 }

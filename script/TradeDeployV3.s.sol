@@ -3,7 +3,7 @@ pragma solidity ^0.8.13;
 
 import "forge-std/Script.sol";
 import { Factory1155 } from "../src/Factory1155.sol";
-import { TradeV2} from "../src/TradeV2.sol";
+import {TradeV3} from "../src/TradeV3.sol";
 import { TransferProxy } from "../src/TransferProxy.sol";
 import {ITransferProxy} from "../src/interface/ITransferProxy.sol";
 
@@ -23,9 +23,9 @@ contract Deploy is Script {
         // address _admin2,
 
         // ITransferProxy _proxy
-        TransferProxy transferProxy = new TransferProxy();
+        TransferProxy transferProxy = TransferProxy(0x8508E135064bf43CdD85000D8389a5b8D03bF266);
 
-        TradeV2 trade = new TradeV2(
+        TradeV3 trade = new TradeV3(
             25, //2.5%
             25, //2.5%
             50, //5%

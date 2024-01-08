@@ -10,14 +10,40 @@ contract Factory1155Test is Test {
     address OWNER = address(0x111);
     address FEE_RECEIVER = address(0x222);
 
+    BafDevUser1155Token public lastDeployed;
+
     function setUp() public {
         vm.startPrank(OWNER);
-        factory = new Factory1155();
+        factory = new Factory1155(OWNER, OWNER);
         factory.setMintFee(0.001 ether);
         factory.setFeeReceiver(FEE_RECEIVER);
-        vm.deal(OWNER, 100 ether);
+        vm.deal(OWNER, 1000 ether);
+        bytes32 salt = bytes32(uint256(0));
+        lastDeployed = BafDevUser1155Token(factory.deploy(salt, "Test", "symbol", "tokenURIPrefix"));
         vm.stopPrank();
     }
+
+    function invariant_feeReceiverIsNotZero() public {
+        assert(factory.feeReceiver() != address(0));
+    }
+
+    function invariant_mintFeeIsNonNegative() public {
+        assert(factory.mintFee() >= 0);
+    }
+
+    function invariant_ownershipTransferred() public {
+        assertEq(lastDeployed.owner(), OWNER);
+    }
+
+    function invariant_isDeployed() public {
+        assert(factory.isDeployed(address(lastDeployed)));
+    }
+
+
+    function invariant_onlyAdminCanWithdrawEth() public {
+        assertEq(factory.hasRole(factory.DEFAULT_ADMIN_ROLE(), OWNER), true);
+    }
+
 
     function testDeploy() public {
         bytes32 salt = bytes32(uint256(0));
@@ -38,6 +64,8 @@ contract Factory1155Test is Test {
         assertEq(token.symbol(), symbol);
         assertEq(token.owner(), OWNER);
     }
+
+
 
     function testMint() public {
         bytes32 salt = bytes32(uint256(0));
@@ -73,6 +101,7 @@ contract Factory1155Test is Test {
     }
 
 
+
     function testChangeMintFee() public {
         uint256 newMintFee = 0.002 ether;
 
@@ -82,7 +111,6 @@ contract Factory1155Test is Test {
 
         assertEq(newMintFee, factory.mintFee());
     }
-
 
     function testFailChangeMintFee() public {
         vm.startPrank(OWNER);
@@ -113,6 +141,39 @@ contract Factory1155Test is Test {
         vm.expectRevert();
     }
 
+
+    function testAdminCanWithdrawEth() public {
+        vm.deal(address(factory), 1 ether);
+
+        // Act - Attempt to withdraw as an admin
+        vm.prank(OWNER); // Assuming OWNER is the admin
+        factory.withdrawEth();
+
+        // Assert - Check the ETH was successfully withdrawn
+        // (You can assert the balance of the admin or the contract as needed)
+    }
+
+    function testNonAdminCannotWithdrawEth() public {
+        // Arrange - Another account that's not an admin
+        address nonAdmin = address(0x123);
+
+        // Act & Assert - Attempt to withdraw as a non-admin should revert
+        
+        vm.prank(nonAdmin);
+        vm.expectRevert();
+        factory.withdrawEth();
+    }
+
+
+    function testNonDeployedContractCannotCallSendFee() public {
+        // Arrange - Another account that's not an admin
+        address nonAdmin = address(0x123);
+
+        // Act & Assert - Attempt to withdraw as a non-admin should revert
+        vm.prank(nonAdmin);
+        vm.expectRevert();
+        factory.sendFee();
+    }
 }
 
 

@@ -3,7 +3,7 @@ pragma solidity 0.8.17;
 
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/interfaces/IERC2981.sol";
-import "./interface/ITransferProxy.sol";
+import "../interface/ITransferProxy.sol";
 import {Pausable} from "@openzeppelin/contracts/security/Pausable.sol";
 
 contract TradeV2 is AccessControl, Pausable{
@@ -321,7 +321,7 @@ contract TradeV2 is AccessControl, Pausable{
     function executeBid(
         Order calldata order,
         Sign calldata sign
-    ) external whenNotPaused returns (bool) {
+    ) external payable whenNotPaused returns (bool) {
         require(!usedNonce[sign.nonce], "Nonce : Invalid Nonce");
         usedNonce[sign.nonce] = true;
         Fee memory fee = getFees(
