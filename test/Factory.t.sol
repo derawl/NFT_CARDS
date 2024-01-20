@@ -1,4 +1,4 @@
-pragma solidity 0.8.17;
+pragma solidity 0.8.21;
 
 import {Test, console2} from "forge-std/Test.sol";
 import {Factory1155} from "../src/Factory1155.sol";

@@ -1,6 +1,6 @@
 //SPDX-License-Identifier: UNLICENSED
 
-pragma solidity 0.8.17;
+pragma solidity 0.8.21;
 
 import "./OwnBafNft1155.sol";
 import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";

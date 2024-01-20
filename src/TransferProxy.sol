@@ -1,5 +1,5 @@
 //SPDX-License-Identifier: UNLICENSED
-pragma solidity 0.8.17;
+pragma solidity 0.8.21;
 
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import "./interface/ITransferProxy.sol";
@@ -76,5 +76,18 @@ contract TransferProxy is AccessControl, ITransferProxy, ReentrancyGuard  {
             token.transferFrom(from, to, value),
             "failure while transferring"
         );
+    }
+
+    function withdrawErc20(address tokenAddress, address receipient) external onlyRole("ADMIN_ROLE") {
+        uint256 balance = IERC20(tokenAddress).balanceOf(address(this));
+        require(balance > 0, "Trade: Insufficient balance");
+        require(IERC20(tokenAddress).transfer(receipient, balance), "ERC20 transfer failed");
+    }
+
+    function withdrawEth(address payable receipient) external onlyRole("ADMIN_ROLE") {
+        uint256 balance = address(this).balance;
+        require(balance > 0, "Trade: Insufficient balance");
+        (bool success, ) = receipient.call{value: balance}("");
+        require(success, "Eth Transfer failed.");
     }
 }
