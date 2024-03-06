@@ -4,7 +4,7 @@ pragma solidity 0.8.21;
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import "./interface/ITransferProxy.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
-contract TransferProxy is AccessControl, ITransferProxy, ReentrancyGuard  {
+contract TransferProxy is AccessControl, ITransferProxy, ReentrancyGuard {
     event OperatorChanged(address indexed from, address indexed to);
     event OwnershipTransferred(
         address indexed previousOwner,
@@ -14,17 +14,16 @@ contract TransferProxy is AccessControl, ITransferProxy, ReentrancyGuard  {
     address public owner;
     address public operator;
 
-    constructor() {
-        owner = msg.sender;
+    constructor(address admin) {
+        owner = admin;
         _setupRole("ADMIN_ROLE", msg.sender);
-        _setupRole("OPERATOR_ROLE", operator);
+        _setupRole(DEFAULT_ADMIN_ROLE, admin);
+        _setupRole("ADMIN_ROLE", admin);
     }
 
-    function changeOperator(address _operator)
-        external
-        onlyRole("ADMIN_ROLE")
-        returns (bool)
-    {
+    function changeOperator(
+        address _operator
+    ) external onlyRole("ADMIN_ROLE") returns (bool) {
         require(
             _operator != address(0),
             "Operator: new operator is the zero address"
@@ -39,11 +38,9 @@ contract TransferProxy is AccessControl, ITransferProxy, ReentrancyGuard  {
     /** change the Ownership from current owner to newOwner address
         @param newOwner : newOwner address */
 
-    function transferOwnership(address newOwner)
-        external
-        onlyRole("ADMIN_ROLE")
-        returns (bool)
-    {
+    function transferOwnership(
+        address newOwner
+    ) external onlyRole("ADMIN_ROLE") returns (bool) {
         require(
             newOwner != address(0),
             "Ownable: new owner is the zero address"
@@ -78,13 +75,21 @@ contract TransferProxy is AccessControl, ITransferProxy, ReentrancyGuard  {
         );
     }
 
-    function withdrawErc20(address tokenAddress, address receipient) external onlyRole("ADMIN_ROLE") {
+    function withdrawErc20(
+        address tokenAddress,
+        address receipient
+    ) external onlyRole("ADMIN_ROLE") {
         uint256 balance = IERC20(tokenAddress).balanceOf(address(this));
         require(balance > 0, "Trade: Insufficient balance");
-        require(IERC20(tokenAddress).transfer(receipient, balance), "ERC20 transfer failed");
+        require(
+            IERC20(tokenAddress).transfer(receipient, balance),
+            "ERC20 transfer failed"
+        );
     }
 
-    function withdrawEth(address payable receipient) external onlyRole("ADMIN_ROLE") {
+    function withdrawEth(
+        address payable receipient
+    ) external onlyRole("ADMIN_ROLE") {
         uint256 balance = address(this).balance;
         require(balance > 0, "Trade: Insufficient balance");
         (bool success, ) = receipient.call{value: balance}("");

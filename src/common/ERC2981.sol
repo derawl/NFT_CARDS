@@ -65,7 +65,7 @@ abstract contract ERC2981 is IERC2981, ERC165 {
      * override.
      */
     function _feeDenominator() internal pure virtual returns (uint96) {
-        return 1000;
+        return 1e18;
     }
 
     /**

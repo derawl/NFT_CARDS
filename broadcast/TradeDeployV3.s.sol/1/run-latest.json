@@ -9,7 +9,7 @@
       "arguments": [
         "0xE8B29Dcf38450E2b6e0E486f124A9DC9EE67c9AE"
       ],
-      "rpc": "https://ethereum-sepolia.publicnode.com",
+      "rpc": "https://rpc.ankr.com/eth",
       "transaction": {
         "type": "0x02",
         "from": "0x28411f770fbf5997c4f5736dfb05b1884fe9158b",
@@ -37,7 +37,7 @@
         "0x1191db828b0241df99E982c0207B1Ab3e3eF7a86",
         "0x33a0a7ceB080756FFee3654768a2e6880DebF328"
       ],
-      "rpc": "https://ethereum-sepolia.publicnode.com",
+      "rpc": "https://rpc.ankr.com/eth",
       "transaction": {
         "type": "0x02",
         "from": "0x28411f770fbf5997c4f5736dfb05b1884fe9158b",
@@ -59,7 +59,7 @@
       "arguments": [
         "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"
       ],
-      "rpc": "https://ethereum-sepolia.publicnode.com",
+      "rpc": "https://rpc.ankr.com/eth",
       "transaction": {
         "type": "0x02",
         "from": "0x28411f770fbf5997c4f5736dfb05b1884fe9158b",
@@ -83,7 +83,7 @@
         "0x0000000000000000000000000000000000000000000000000000000000000000",
         "0xE8B29Dcf38450E2b6e0E486f124A9DC9EE67c9AE"
       ],
-      "rpc": "https://ethereum-sepolia.publicnode.com",
+      "rpc": "https://rpc.ankr.com/eth",
       "transaction": {
         "type": "0x02",
         "from": "0x28411f770fbf5997c4f5736dfb05b1884fe9158b",
@@ -106,7 +106,7 @@
       "arguments": [
         "0xb5D4D8440a2F2c9FD9064C47097516Cd840f2525"
       ],
-      "rpc": "https://ethereum-sepolia.publicnode.com",
+      "rpc": "https://rpc.ankr.com/eth",
       "transaction": {
         "type": "0x02",
         "from": "0x28411f770fbf5997c4f5736dfb05b1884fe9158b",
@@ -124,10 +124,10 @@
   "receipts": [],
   "libraries": [],
   "pending": [],
-  "path": "C:/Users/frawl/OneDrive/Desktop/code/nftTradingCards/broadcast\\TradeDeployV3.s.sol\\11155111\\run-latest.json",
+  "path": "C:/Users/frawl/OneDrive/Desktop/code/nftTradingCards/broadcast\\TradeDeployV3.s.sol\\1\\run-latest.json",
   "returns": {},
-  "timestamp": 1709715564,
-  "chain": 11155111,
+  "timestamp": 1709715669,
+  "chain": 1,
   "multi": false,
   "commit": "9cc4455"
 }

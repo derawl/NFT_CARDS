@@ -20,7 +20,6 @@ import "@openzeppelin/contracts/interfaces/IERC1155.sol";
  */
 
 interface ITransferProxy {
-
     function erc1155safeTransferFrom(
         IERC1155 token,
         address from,

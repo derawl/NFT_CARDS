@@ -7,26 +7,25 @@ import "@openzeppelin/contracts/utils/Context.sol";
 import "@openzeppelin/contracts/utils/Counters.sol";
 import "@openzeppelin/contracts/utils/Strings.sol";
 import "@openzeppelin/contracts/access/AccessControl.sol";
-import "./common/ERC2981.sol";
+import "../common/ERC2981.sol";
 import {Pausable} from "@openzeppelin/contracts/security/Pausable.sol";
-import {IFactory} from "./interface/IFactory.sol";
+import {IFactory} from "../interface/IFactory.sol";
+import "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 
-
-contract BafDevUser1155Token is
+contract BafDevUser1155TokenInitializable is
     Context,
     ERC1155Burnable,
     ERC1155Supply,
     ERC2981,
     AccessControl,
-    Pausable
+    Pausable,
+    Initializable
 {
     using Counters for Counters.Counter;
     using Strings for uint256;
     Counters.Counter private _tokenIdTracker;
 
     bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
-
-    bool public isInitialized;
 
     mapping(uint256 => string) private _tokenURIs;
 
@@ -42,20 +41,23 @@ contract BafDevUser1155Token is
         address indexed newOwner
     );
     event MintFeeCollected(address indexed collector, uint256 indexed amount);
-    constructor(
-        string memory _tokenName,
-        string memory _tokenSymbol,
-        string memory _baseTokenURI,
-        address _factory
-    ) ERC1155(_baseTokenURI) {
-        baseTokenURI = _baseTokenURI;
-        owner = _msgSender();
-        _setupRole(ADMIN_ROLE, msg.sender);
+    constructor(string memory _baseTokenURI) ERC1155(_baseTokenURI) {}
+    
+   
+    function initialize(address newOwner,  string memory _tokenName,
+        string memory _tokenSymbol, string memory newUri, address _factory) external initializer() {
+        bool transfered = _transferOwnership(newOwner);
+        _setURI(newUri);
         _name = _tokenName;
         _symbol = _tokenSymbol;
         _tokenIdTracker.increment();
         factory = IFactory(_factory);
+        require(
+            transfered,
+            "Ownership transfer failed"
+        );
     }
+
 
     function name() external view returns (string memory) {
         return _name;
@@ -73,32 +75,23 @@ contract BafDevUser1155Token is
         _unpause();
     }
 
-    function initialize(address newOwner) external onlyRole(ADMIN_ROLE) {
-        require(!isInitialized, "BafDevUser1155Token: already initialized");
-        bool transfered = _transferOwnership(newOwner);
-        require(
-            transfered,
-            "BafDevUser1155Token: Initialization ownership transfer failed"
-        );
-        isInitialized = true;
-    }
 
     function transferOwnership(
         address newOwner
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    ) external onlyRole(DEFAULT_ADMIN_ROLE)  {
         bool transfered = _transferOwnership(newOwner);
-        require(transfered, "BafDevUser1155Token: Ownership transfer failed");
+        require(transfered, "Ownership transfer failed");
     }
 
     /** @dev change the Ownership from current owner to newOwner address
-        @param newOwner : newOwner address 
-    */
+        @param newOwner : newOwner address */
+
     function _transferOwnership(
         address newOwner
     ) internal whenNotPaused returns (bool) {
         require(
             newOwner != address(0),
-            "Ownable: new owner is the zero address"
+            "zero address"
         );
         _revokeRole(ADMIN_ROLE, owner);
         owner = newOwner;
@@ -114,15 +107,17 @@ contract BafDevUser1155Token is
         uint96 _royaltyFee,
         uint256 supply
     ) external payable virtual whenNotPaused returns (uint256 _tokenId) {
+        // We cannot just use balanceOf to create the new tokenId because tokens
+        // can be burned (destroyed), so we need a separate counter.
         if (factory.mintFee() > 0) {
             require(
                 msg.value == factory.mintFee(),
-                "BafDevUser1155Token: invalid fee amount"
+                "Invalid fee amount"
             );
             factory.sendFee{value: msg.value}();
         }
         if (bytes(_tokenURI).length <= 0) {
-            revert("BafDevUser1155Token: invalid token URI");
+            revert("Invalid token URI");
         }
         _tokenId = _tokenIdTracker.current();
         _mint(_msgSender(), _tokenId, supply, "");
@@ -144,7 +139,7 @@ contract BafDevUser1155Token is
     ) external virtual returns (bool) {
         //feeDeonominator is 1e18 =100%
         (address minter, ) = royaltyInfo(tokenId, 1e18);
-        require(_msgSender() == minter, "ERC1155: caller is not the owner");
+        require(_msgSender() == minter, "caller is not the owner");
         _setTokenRoyalty(tokenId, _msgSender(), royaltyFee);
         return true;
     }
@@ -158,9 +153,11 @@ contract BafDevUser1155Token is
         );
 
         string memory _tokenURI = _tokenURIs[tokenId];
+        // If there is no base URI, return the token URI.
         if (bytes(baseTokenURI).length == 0) {
             return _tokenURI;
         }
+        // If both are set, concatenate the baseURI and tokenURI (via abi.encodePacked).
         if (bytes(_tokenURI).length > 0) {
             return string(abi.encodePacked(baseTokenURI, _tokenURI));
         }

@@ -83,7 +83,7 @@ contract TradeV3Test is Test {
         weth.mint(Tester1, 1000 ether);
 
 
-        transferProxy = new TransferProxy();
+        transferProxy = new TransferProxy(OWNER);
         trade = new TradeV3(
             25, //2.5%
             25, //2.5%
@@ -240,7 +240,7 @@ contract TradeV3Test is Test {
 
 
     function testSetTransferProxy() public ownerCall {
-        TransferProxy transferProxy = new TransferProxy();
+        TransferProxy transferProxy = new TransferProxy(OWNER);
         trade.setTransferProxy(address(transferProxy));
         assertEq(address(trade.transferProxy()), address(transferProxy));
 
@@ -250,7 +250,7 @@ contract TradeV3Test is Test {
     }
 
     function testSetTransferProxyNonOwner() public {
-        TransferProxy transferProxy = new TransferProxy();
+        TransferProxy transferProxy = new TransferProxy(OWNER);
         vm.expectRevert();
         trade.setTransferProxy(address(transferProxy));
     }

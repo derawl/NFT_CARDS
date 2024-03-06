@@ -7,13 +7,8 @@ import "./interface/ITransferProxy.sol";
 import {Pausable} from "@openzeppelin/contracts/security/Pausable.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 
-
-//Todo: make sure fee structures maintain precision of 1000
-
-contract TradeV3 is AccessControl, Pausable, ReentrancyGuard{
-
+contract TradeV3 is AccessControl, Pausable, ReentrancyGuard {
     bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
-
 
     enum PartnerFeeType {
         nonPartner,
@@ -24,10 +19,10 @@ contract TradeV3 is AccessControl, Pausable, ReentrancyGuard{
         address indexed previousOwner,
         address indexed newOwner
     );
-    event MaxRoyaltyFee(uint16 maxRoyaltyFee);
-    event MarketingFee(uint16 marketingFee);
-    event SellerFee(uint16 sellerFee);
-    event PartnerFee(uint16 partnerFee);
+    event MaxRoyaltyFee(uint256 maxRoyaltyFee);
+    event MarketingFee(uint256 marketingFee);
+    event SellerFee(uint256 sellerFee);
+    event PartnerFee(uint256 partnerFee);
     event BuyAsset(
         address nftAddress,
         address indexed assetOwner,
@@ -51,18 +46,20 @@ contract TradeV3 is AccessControl, Pausable, ReentrancyGuard{
         uint256 assetFee
     );
 
+    event SupportedERC20TokenSet(address tokenAddress);
+    event SupportedERC20TokenReoved(address tokenAddress);
 
-    uint16 public constant PRECISION = 1000;
+    uint256 public constant PRECISION = 1e18;
 
     //seller platformFee
-    uint16 public sellerFeePermille;
+    uint256 public sellerFeePermille;
     //partner platformFee
-    uint16 public partnerFeePermille;
+    uint256 public partnerFeePermille;
 
-    //royalty fee 
-    uint16 public maxRoyaltyFee;
+    //royalty fee
+    uint256 public maxRoyaltyFee;
 
-    uint16 public marketingFeePermille;
+    uint256 public marketingFeePermille;
 
     ITransferProxy public transferProxy;
     //contract owner and admins
@@ -70,7 +67,9 @@ contract TradeV3 is AccessControl, Pausable, ReentrancyGuard{
     address public admin1;
     address public admin2;
 
-    mapping(uint256 => bool) public  usedNonce;
+    mapping(uint256 => bool) public usedNonce;
+    mapping(address tokenAddress => bool isSupported)
+        public supportedErc20Token;
 
     /** Fee Struct
         @param platformFee  sellerFee value which is transferred to current contract owner.
@@ -119,17 +118,16 @@ contract TradeV3 is AccessControl, Pausable, ReentrancyGuard{
         uint256 qty;
     }
 
-
-    modifier isValidRange(uint16 _value) {
+    modifier isValidRange(uint256 _value) {
         require(_value >= 0 && _value <= PRECISION, "Trade: Invalid value");
         _;
     }
 
     constructor(
-        uint16 _maxRoyaltyFee,
-        uint16 _sellerFee,
-        uint16 _partnerFee,
-        uint16 _maketingFee,
+        uint256 _maxRoyaltyFee,
+        uint256 _sellerFee,
+        uint256 _partnerFee,
+        uint256 _maketingFee,
         address _admin1,
         address _admin2,
         ITransferProxy _transferProxy
@@ -152,21 +150,26 @@ contract TradeV3 is AccessControl, Pausable, ReentrancyGuard{
         returns the sellerservice Fee in multiply of PRECISION.
      */
 
-    function sellerServiceFee() external view virtual returns (uint16) {
+    function sellerServiceFee() external view virtual returns (uint256) {
         return sellerFeePermille;
     }
 
-    function partnerServiceFee() external view virtual returns (uint16) {
+    function partnerServiceFee() external view virtual returns (uint256) {
         return partnerFeePermille;
     }
 
-    function setMaxRoyaltyFee(uint16 _maxRoyaltyFee) external onlyRole(ADMIN_ROLE) isValidRange(_maxRoyaltyFee) returns (bool) {
+    function setMaxRoyaltyFee(
+        uint256 _maxRoyaltyFee
+    )
+        external
+        onlyRole(ADMIN_ROLE)
+        isValidRange(_maxRoyaltyFee)
+        returns (bool)
+    {
         maxRoyaltyFee = _maxRoyaltyFee;
         emit MaxRoyaltyFee(_maxRoyaltyFee);
         return true;
     }
-
-
 
     function pause() external onlyRole(ADMIN_ROLE) {
         _pause();
@@ -176,23 +179,36 @@ contract TradeV3 is AccessControl, Pausable, ReentrancyGuard{
         _unpause();
     }
 
-
-    function setTransferProxy(address newTransferProxy) external onlyRole(ADMIN_ROLE) returns (bool) {
+    function setTransferProxy(
+        address newTransferProxy
+    ) external onlyRole(ADMIN_ROLE) returns (bool) {
         require(newTransferProxy != address(0), "Trade: Invalid address");
         transferProxy = ITransferProxy(newTransferProxy);
         return true;
     }
 
     function setAllFees(
-        uint16 _maxRoyaltyFee,
-        uint16 _marketingFee,
-        uint16 _sellerFee,
-        uint16 _partnerFee
+        uint256 _maxRoyaltyFee,
+        uint256 _marketingFee,
+        uint256 _sellerFee,
+        uint256 _partnerFee
     ) external onlyRole(ADMIN_ROLE) returns (bool) {
-        require(_marketingFee >= 0 && _marketingFee <= PRECISION, "Trade: Invalid value");
-        require(_sellerFee >= 0 && _sellerFee <= PRECISION, "Trade: Invalid value");
-        require(_partnerFee >= 0 && _partnerFee <= PRECISION, "Trade: Invalid value");
-        require(_maxRoyaltyFee >= 0 && _maxRoyaltyFee <= PRECISION, "Trade: Invalid value");
+        require(
+            _marketingFee >= 0 && _marketingFee <= PRECISION,
+            "Trade: Invalid value"
+        );
+        require(
+            _sellerFee >= 0 && _sellerFee <= PRECISION,
+            "Trade: Invalid value"
+        );
+        require(
+            _partnerFee >= 0 && _partnerFee <= PRECISION,
+            "Trade: Invalid value"
+        );
+        require(
+            _maxRoyaltyFee >= 0 && _maxRoyaltyFee <= PRECISION,
+            "Trade: Invalid value"
+        );
         marketingFeePermille = _marketingFee;
         sellerFeePermille = _sellerFee;
         partnerFeePermille = _partnerFee;
@@ -204,21 +220,34 @@ contract TradeV3 is AccessControl, Pausable, ReentrancyGuard{
         return true;
     }
 
+    function setSupportedToken(
+        address tokenAddress
+    ) external onlyRole(ADMIN_ROLE) {
+        supportedErc20Token[tokenAddress] = true;
+        emit SupportedERC20TokenSet(tokenAddress);
+    }
+
+    function removeSupportedToken(
+        address tokenAddress
+    ) external onlyRole(ADMIN_ROLE) {
+        delete supportedErc20Token[tokenAddress];
+        emit SupportedERC20TokenReoved(tokenAddress);
+    }
 
     function setMarketingFee(
-        uint16 _marketingFee
+        uint256 _marketingFee
     ) external onlyRole(ADMIN_ROLE) isValidRange(_marketingFee) returns (bool) {
         marketingFeePermille = _marketingFee;
         emit MarketingFee(marketingFeePermille);
         return true;
     }
-   
+
     /** 
         @param _sellerFee  value for buyerservice in multiply of PRECISION.
     */
 
     function setSellerServiceFee(
-        uint16 _sellerFee
+        uint256 _sellerFee
     ) external onlyRole(ADMIN_ROLE) isValidRange(_sellerFee) returns (bool) {
         sellerFeePermille = _sellerFee;
         emit SellerFee(sellerFeePermille);
@@ -226,7 +255,7 @@ contract TradeV3 is AccessControl, Pausable, ReentrancyGuard{
     }
 
     function setPartnerFee(
-        uint16 _partnerFee
+        uint256 _partnerFee
     ) external onlyRole(ADMIN_ROLE) isValidRange(_partnerFee) returns (bool) {
         partnerFeePermille = _partnerFee;
         emit PartnerFee(partnerFeePermille);
@@ -254,7 +283,6 @@ contract TradeV3 is AccessControl, Pausable, ReentrancyGuard{
         return true;
     }
 
-    
     function setAdmin1(
         address newAdmin1
     ) external onlyRole(DEFAULT_ADMIN_ROLE) returns (bool) {
@@ -296,12 +324,12 @@ contract TradeV3 is AccessControl, Pausable, ReentrancyGuard{
         Sign calldata sign
     ) external nonReentrant whenNotPaused returns (bool) {
         require(!usedNonce[sign.nonce], "Nonce : Invalid Nonce");
-        usedNonce[sign.nonce] = true;
-        Fee memory fee = getFees(
-            order.amount,
-            order.nftAddress,
-            order.tokenId
+        require(
+            supportedErc20Token[order.erc20Address],
+            "ERC20: This token is not supported for trades"
         );
+        usedNonce[sign.nonce] = true;
+        Fee memory fee = getFees(order.amount, order.nftAddress, order.tokenId);
         // require(
         //     (fee.price >= order.unitPrice * order.qty),
         //     "Paid invalid amount"
@@ -337,12 +365,12 @@ contract TradeV3 is AccessControl, Pausable, ReentrancyGuard{
         Sign calldata sign
     ) external nonReentrant whenNotPaused returns (bool) {
         require(!usedNonce[sign.nonce], "Nonce : Invalid Nonce");
-        usedNonce[sign.nonce] = true;
-        Fee memory fee = getFees(
-            order.amount,
-            order.nftAddress,
-            order.tokenId
+        require(
+            supportedErc20Token[order.erc20Address],
+            "ERC20: This token is not supported"
         );
+        usedNonce[sign.nonce] = true;
+        Fee memory fee = getFees(order.amount, order.nftAddress, order.tokenId);
         _verifyBuyerSign(
             order.buyer,
             order.tokenId,
@@ -442,12 +470,14 @@ contract TradeV3 is AccessControl, Pausable, ReentrancyGuard{
         address tokenCreator;
         uint256 royaltyFee;
         uint256 assetFee;
-        uint256 price =  paymentAmt;
+        uint256 price = paymentAmt;
         uint256 sellerFee = (price * sellerFeePermille) / PRECISION;
         uint256 partnerFee = (price * partnerFeePermille) / PRECISION;
-        
-        (tokenCreator, royaltyFee) = IERC2981(buyingAssetAddress)
-            .royaltyInfo(tokenId, price);
+
+        (tokenCreator, royaltyFee) = IERC2981(buyingAssetAddress).royaltyInfo(
+            tokenId,
+            price
+        );
 
         uint256 maxAcceptableRoyaltyFee = (price * maxRoyaltyFee) / PRECISION;
 
@@ -456,9 +486,9 @@ contract TradeV3 is AccessControl, Pausable, ReentrancyGuard{
         royaltyFee = royaltyFee > maxAcceptableRoyaltyFee
             ? maxAcceptableRoyaltyFee
             : royaltyFee;
-        
+
         assetFee = price - (sellerFee + royaltyFee + partnerFee + marketingFee);
-       
+
         return
             Fee(
                 sellerFee,
@@ -477,13 +507,12 @@ contract TradeV3 is AccessControl, Pausable, ReentrancyGuard{
         @param fee Feevalues(platformFee, assetFee,...).
     */
 
-     function _tradeAsset(
+    function _tradeAsset(
         Order calldata order,
         Fee memory fee,
         address buyer,
         address seller
     ) internal virtual {
-        
         transferProxy.erc1155safeTransferFrom(
             IERC1155(order.nftAddress),
             seller,
@@ -492,7 +521,7 @@ contract TradeV3 is AccessControl, Pausable, ReentrancyGuard{
             order.qty,
             ""
         );
-        
+
         if (fee.marketingFee > 0) {
             transferProxy.erc20safeTransferFrom(
                 IERC20(order.erc20Address),
@@ -516,8 +545,7 @@ contract TradeV3 is AccessControl, Pausable, ReentrancyGuard{
                 order.partner,
                 fee.partnerFee
             );
-        }
-        else {
+        } else {
             transferProxy.erc20safeTransferFrom(
                 IERC20(order.erc20Address),
                 buyer,
@@ -547,17 +575,24 @@ contract TradeV3 is AccessControl, Pausable, ReentrancyGuard{
             fee.partnerFee,
             fee.marketingFee,
             fee.assetFee
-            );
+        );
     }
 
-
-    function withdrawErc20(address tokenAddress, address receipient) external onlyRole(ADMIN_ROLE) {
+    function withdrawErc20(
+        address tokenAddress,
+        address receipient
+    ) external onlyRole(ADMIN_ROLE) {
         uint256 balance = IERC20(tokenAddress).balanceOf(address(this));
         require(balance > 0, "Trade: Insufficient balance");
-        require(IERC20(tokenAddress).transfer(receipient, balance), "ERC20 transfer failed");
+        require(
+            IERC20(tokenAddress).transfer(receipient, balance),
+            "ERC20 transfer failed"
+        );
     }
 
-    function withdrawEth(address payable receipient) external onlyRole(ADMIN_ROLE) {
+    function withdrawEth(
+        address payable receipient
+    ) external onlyRole(ADMIN_ROLE) {
         uint256 balance = address(this).balance;
         require(balance > 0, "Trade: Insufficient balance");
         (bool success, ) = receipient.call{value: balance}("");
